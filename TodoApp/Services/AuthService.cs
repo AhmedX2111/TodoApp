@@ -12,11 +12,11 @@ namespace TodoApp.Services
 {
 	public class AuthService
 	{
-		private readonly AuthDbContext _context;
+		private readonly AppDbContext _context;
 		private readonly PasswordHasher<User> _hasher = new();
 		private readonly IConfiguration _config;
 
-		public AuthService(AuthDbContext context, IConfiguration config)
+		public AuthService(AppDbContext context, IConfiguration config)
 		{
 			_context = context;
 			_config = config;
@@ -26,7 +26,7 @@ namespace TodoApp.Services
 		{
 			if (await _context.Users.AnyAsync(u => u.Username == username)) return false;
 
-			var user = new User { Username = username };
+			var user = new User { Username = username, Id = Guid.NewGuid() }; // Generate UserId
 			user.PasswordHash = _hasher.HashPassword(user, password);
 
 			_context.Users.Add(user);
@@ -35,24 +35,40 @@ namespace TodoApp.Services
 			return true;
 		}
 
-		public async Task<string?> LoginAsync(string username, string password)
+
+		public async Task<User?> LoginAsync(string username, string password)
 		{
-			var user = await _context.Users.SingleOrDefaultAsync(u => u.Username == username);
-			if (user == null) return null;
+			// Find the user by username
+			var user = await _context.Users
+									 .FirstOrDefaultAsync(u => u.Username == username);
 
-			var result = _hasher.VerifyHashedPassword(user, user.PasswordHash, password);
-			if (result != PasswordVerificationResult.Success) return null;
+			// If the user does not exist, return null
+			if (user == null)
+			{
+				return null; // User not found
+			}
 
-			return GenerateJwtToken(user);
+			// Check if the provided password matches the stored password hash
+			var passwordResult = _hasher.VerifyHashedPassword(null, user.PasswordHash, password);
+
+			if (passwordResult != PasswordVerificationResult.Success)
+			{
+				return null; // Invalid password
+			}
+
+			// Return the user if the credentials are valid
+			return user;
 		}
 
-		private string GenerateJwtToken(User user)
+
+
+		public string GenerateJwtToken(User user)
 		{
 			var claims = new[]
 			{
-			new Claim(ClaimTypes.Name, user.Username),
-			new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())
-		};
+		new Claim(ClaimTypes.Name, user.Username),
+		new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()) // Include UserId
+    };
 
 			var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
 			var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -66,5 +82,15 @@ namespace TodoApp.Services
 
 			return new JwtSecurityTokenHandler().WriteToken(token);
 		}
+
+		public async Task<User?> ValidateUserAsync(string username, string password)
+		{
+			var user = await _context.Users.SingleOrDefaultAsync(u => u.Username == username);
+			if (user == null) return null;
+
+			var result = _hasher.VerifyHashedPassword(user, user.PasswordHash, password);
+			return result == PasswordVerificationResult.Success ? user : null;
+		}
+
 	}
 }

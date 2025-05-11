@@ -1,34 +1,38 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace TodoApp.Models
 {
-	public enum TodoStatus { Pending = 0, InProgress = 1, Completed = 2 }
+	public enum TodoStatus { Pending , InProgress, Completed }
 	public enum TodoPriority
 	{
-		Low = 0,
-		Medium = 1,
-		High = 2
+		Low ,
+		Medium ,
+		High
 	}
 	public class Todo
 	{
 		public Guid Id { get; set; }
 
-		[Required]
-		public string Title { get; set; }
+		[Required, MaxLength(100)]
+		public string Title { get; set; } = string.Empty;
 
-		public string Description { get; set; }
-
-		[Required]
-		public DateTime DueDate { get; set; }
+		public string? Description { get; set; }
 
 		[Required]
-		public TodoStatus Status { get; set; }
+		public TodoStatus Status { get; set; } = TodoStatus.Pending;
 
 		[Required]
-		public int Priority { get; set; }
+		public TodoPriority Priority { get; set; } = TodoPriority.Medium;
+
+		public DateTime? DueDate { get; set; }
 
 		public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
+		public DateTime LastModifiedDate { get; set; } = DateTime.UtcNow;
 
-		public DateTime? LastModifiedDate { get; set; }
+		// Foreign Key
+		public Guid UserId { get; set; }
+		[JsonIgnore]
+		public User? User { get; set; } = null!;
 	}
 }

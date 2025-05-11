@@ -1,33 +1,62 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.EntityFrameworkCore; // Added this using directive
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using TodoApp.Data;
 using TodoApp.Services;
-
-// Ensure the EF Core SQL Server package is installed
-// Install-Package Microsoft.EntityFrameworkCore.SqlServer
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDbContext<AuthDbContext>(options =>
-	options.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
-
-
-builder.Services.AddDbContext<TodoDbContext>(options =>
+// Add services to the container
+builder.Services.AddDbContext<AppDbContext>(options =>
 	options.UseSqlServer(builder.Configuration.GetConnectionString("Default")));
 
 builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
 
+// Configure Swagger
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+	options.SwaggerDoc("v1", new OpenApiInfo
+	{
+		Version = "v1",
+		Title = "TodoApp API",
+		Description = "A simple Todo app API using JWT Authentication"
+	});
+	options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+	{
+		Name = "Authorization",
+		Type = SecuritySchemeType.Http,
+		Scheme = "Bearer",
+		BearerFormat = "JWT",
+		In = ParameterLocation.Header,
+		Description = "Enter 'Bearer' [space] and then your token in the text input below.\r\n\r\nExample: \"Bearer abcdef12345\""
+	});
+	options.AddSecurityRequirement(new OpenApiSecurityRequirement
+	{
+		{
+			new OpenApiSecurityScheme
+			{
+				Reference = new OpenApiReference
+				{
+					Type = ReferenceType.SecurityScheme,
+					Id = "Bearer"
+				}
+			},
+			Array.Empty<string>()
+		}
+	});
+});
+
+// Add services
 builder.Services.AddScoped<AuthService>();
 
+// Configure JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 	.AddJwtBearer(options =>
 	{
-		options.TokenValidationParameters = new()
+		options.TokenValidationParameters = new TokenValidationParameters
 		{
 			ValidateIssuer = true,
 			ValidateAudience = true,
@@ -40,10 +69,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 		};
 	});
 
-
+// Configure CORS (only once)
 builder.Services.AddCors(options =>
 {
-	options.AddDefaultPolicy(policy =>
+	options.AddPolicy("AllowAll", policy =>
 	{
 		policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
 	});
@@ -51,32 +80,27 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
 	app.UseSwagger();
-	app.UseSwaggerUI();
+	app.UseSwaggerUI(c =>
+	{
+		c.SwaggerEndpoint("/swagger/v1/swagger.json", "TodoApp API V1");
+	});
 }
 
+// Order matters for middleware!
 app.UseHttpsRedirection();
+app.UseRouting();
+app.UseCors("AllowAll"); 
 
-app.UseDefaultFiles();    
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseDirectoryBrowser();
-
-app.UseRouting();
-
-
-app.UseCors(builder =>
-	builder.AllowAnyOrigin()
-		   .AllowAnyMethod()
-		   .AllowAnyHeader());
-
-app.UseCors("AllowAll");
-
-
-app.UseAuthentication();  
-app.UseAuthorization();
 
 app.MapControllers();
 
