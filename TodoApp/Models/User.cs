@@ -4,14 +4,16 @@ namespace TodoApp.Models
 {
 	public class User
 	{
-		[Key]
-		public Guid Id { get; set; } = Guid.NewGuid();
+		public Guid Id { get; set; } // pk
 
 		[Required]
 		[MaxLength(50)]
-		public string Username { get; set; }
+		public string Username { get; set; } = string.Empty;
 
 		[Required]
-		public string PasswordHash { get; set; }
+		public string PasswordHash { get; set; } = string.Empty;
+
+		// Navigation
+		public ICollection<Todo> Todos { get; set; } = new List<Todo>();
 	}
 }
